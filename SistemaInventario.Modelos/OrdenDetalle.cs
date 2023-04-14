@@ -26,7 +26,7 @@ namespace SistemaInventario.Modelos
         [Required]
         public int Cantidad { get; set; }
 
-        public int Precio { get; set; }
+        public double Precio { get; set; }
 
     }
 }
