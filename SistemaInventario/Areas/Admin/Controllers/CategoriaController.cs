@@ -54,10 +54,12 @@ namespace SistemaInventario.Areas.Admin.Controllers
             {
                 if (categoria.Id == 0)
                 {
+                    TempData["Crear"] = "Categoria Creada Correctamente";
                     _unidadTrabajo.Categoria.Agregar(categoria);
                 }
                 else
                 {
+                    TempData["Actualizar"] = "Categoria Actualizada Correctamente";
                     _unidadTrabajo.Categoria.Actualizar(categoria);
                 }
                 _unidadTrabajo.Guardar();

@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using SistemaInventario.AccesoDatos.Data;
+using SistemaInventario.Modelos;
 
 namespace SistemaInventario.Areas.Identity.Pages.Account.Manage
 {
@@ -13,11 +16,14 @@ namespace SistemaInventario.Areas.Identity.Pages.Account.Manage
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
+        private readonly ApplicationDbContext _db;
 
         public IndexModel(
+            ApplicationDbContext db,
             UserManager<IdentityUser> userManager,
             SignInManager<IdentityUser> signInManager)
         {
+            _db = db;
             _userManager = userManager;
             _signInManager = signInManager;
         }
@@ -35,18 +41,34 @@ namespace SistemaInventario.Areas.Identity.Pages.Account.Manage
             [Phone]
             [Display(Name = "Phone number")]
             public string PhoneNumber { get; set; }
+            public string Nombres { get; set; }
+            public string Apellidos { get; set; }
         }
 
         private async Task LoadAsync(IdentityUser user)
         {
             var userName = await _userManager.GetUserNameAsync(user);
             var phoneNumber = await _userManager.GetPhoneNumberAsync(user);
+            var nombres = "";
+            var apellidos = "";
 
             Username = userName;
 
+            var claimIdentidad = (ClaimsIdentity)User.Identity;
+            var claim = claimIdentidad.FindFirst(ClaimTypes.NameIdentifier);
+
+            if (claim != null)
+            {
+                var usuarioApp = await _db.UsuarioAplicacion.FindAsync(claim.Value);
+                nombres = usuarioApp.Nombres;
+                apellidos = usuarioApp.Apellidos;
+            }
+
             Input = new InputModel
             {
-                PhoneNumber = phoneNumber
+                PhoneNumber = phoneNumber,
+                Nombres = nombres,
+                Apellidos = apellidos
             };
         }
 
@@ -77,6 +99,18 @@ namespace SistemaInventario.Areas.Identity.Pages.Account.Manage
             }
 
             var phoneNumber = await _userManager.GetPhoneNumberAsync(user);
+
+            var claimIdentidad = (ClaimsIdentity)User.Identity;
+            var claim = claimIdentidad.FindFirst(ClaimTypes.NameIdentifier);
+            var usuarioApp = new UsuarioAplicacion();
+
+            if (claim != null)
+            {
+                usuarioApp = await _db.UsuarioAplicacion.FindAsync(claim.Value);
+                usuarioApp.Nombres = Input.Nombres;
+                usuarioApp.Apellidos = Input.Apellidos;
+            }
+
             if (Input.PhoneNumber != phoneNumber)
             {
                 var setPhoneResult = await _userManager.SetPhoneNumberAsync(user, Input.PhoneNumber);
@@ -88,6 +122,8 @@ namespace SistemaInventario.Areas.Identity.Pages.Account.Manage
             }
 
             await _signInManager.RefreshSignInAsync(user);
+            _db.UsuarioAplicacion.Update(usuarioApp);
+            await _db.SaveChangesAsync();
             StatusMessage = "Your profile has been updated";
             return RedirectToPage();
         }

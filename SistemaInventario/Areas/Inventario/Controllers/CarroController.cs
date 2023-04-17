@@ -2,6 +2,8 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Rotativa.AspNetCore;
+using SistemaInventario.AccesoDatos.Data;
 using SistemaInventario.AccesoDatos.Repositorio.IRepositorio;
 using SistemaInventario.Modelos;
 using SistemaInventario.Modelos.ViewModels;
@@ -19,15 +21,17 @@ namespace SistemaInventario.Areas.Inventario.Controllers
         private readonly IUnidadTrabajo _unidadTrabajo;
         private readonly IEmailSender _emailSender;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly ApplicationDbContext _db;
 
         [BindProperty]
         public CarroComprasViewModel CarroComprasVM { get; set; }
 
-        public CarroController(IUnidadTrabajo unidadTrabajo, IEmailSender emailSender, UserManager<IdentityUser> userManager)
+        public CarroController(IUnidadTrabajo unidadTrabajo, IEmailSender emailSender, UserManager<IdentityUser> userManager, ApplicationDbContext db)
         {
             _unidadTrabajo = unidadTrabajo;
             _emailSender = emailSender;
             _userManager = userManager;
+            _db = db;
         }
 
         public IActionResult Index()
@@ -101,7 +105,8 @@ namespace SistemaInventario.Areas.Inventario.Controllers
             CarroComprasVM = new CarroComprasViewModel()
             {
                 Orden = new Modelos.Orden(),
-                CarroComprasLista = _unidadTrabajo.CarroCompras.ObtenerTodos(u => u.UsuarioAplicacionId == claim.Value, incluirPropiedades: "Producto")
+                CarroComprasLista = _unidadTrabajo.CarroCompras.ObtenerTodos(u => u.UsuarioAplicacionId == claim.Value, incluirPropiedades: "Producto"),
+                Compañia = _unidadTrabajo.Compañia.ObtenerPrimero()
             };
 
             CarroComprasVM.Orden.TotalOrden = 0;
@@ -119,6 +124,19 @@ namespace SistemaInventario.Areas.Inventario.Controllers
             CarroComprasVM.Orden.Pais = CarroComprasVM.Orden.UsuarioAplicacion.Pais;
             CarroComprasVM.Orden.Ciudad = CarroComprasVM.Orden.UsuarioAplicacion.Ciudad;
 
+            //Controlar Stock
+            foreach (var item in CarroComprasVM.CarroComprasLista)
+            {
+                // Capturar el stock de cada Producto
+                var producto = _db.BodegaProducto.FirstOrDefault(b => b.ProductoId == item.ProductoId && b.BodegaId == CarroComprasVM.Compañia.BodegaVentaId);
+
+                if (item.Cantidad > producto.Cantidad)
+                {
+                    TempData["Error"] = "La cantidad del producto " + item.Producto.Descripcion + " Excede al Stock actual";
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+
             return View(CarroComprasVM);
         }
 
@@ -135,6 +153,7 @@ namespace SistemaInventario.Areas.Inventario.Controllers
             CarroComprasVM.Orden.EstadoPago = DS.PagoEstadoPendiente;
             CarroComprasVM.Orden.UsuarioAplicacionId = claim.Value;
             CarroComprasVM.Orden.FechaOrden = DateTime.Now;
+            CarroComprasVM.Compañia = _unidadTrabajo.Compañia.ObtenerPrimero();
 
             _unidadTrabajo.Orden.Agregar(CarroComprasVM.Orden);
             _unidadTrabajo.Guardar();
@@ -186,6 +205,14 @@ namespace SistemaInventario.Areas.Inventario.Controllers
                     CarroComprasVM.Orden.EstadoPago = DS.PagoEstadoAprobado;
                     CarroComprasVM.Orden.EstadoOrden = DS.EstadoAprobado;
                     CarroComprasVM.Orden.FechaPago = DateTime.Now;
+
+                    // Actualizar Stock del Inventario
+                    foreach (var item in CarroComprasVM.CarroComprasLista)
+                    {
+                        var producto = _db.BodegaProducto.FirstOrDefault(b => b.ProductoId == item.ProductoId && b.BodegaId == CarroComprasVM.Compañia.BodegaVentaId);
+
+                        producto.Cantidad -= item.Cantidad; // Disminuye la cantidad del Stock del producto/bodega
+                    }
                 }
             }
 
@@ -197,6 +224,31 @@ namespace SistemaInventario.Areas.Inventario.Controllers
         public IActionResult OrdenConfirmacion(int id)
         {
             return View(id);
+        }
+
+        public IActionResult ImprimirOrden(int id)
+        {
+            try
+            {
+                CarroComprasVM = new CarroComprasViewModel();
+                CarroComprasVM.Compañia = _unidadTrabajo.Compañia.ObtenerPrimero();
+                CarroComprasVM.Orden = _unidadTrabajo.Orden.ObtenerPrimero(o => o.Id == id, incluirPropiedades: "UsuarioAplicacion");
+                CarroComprasVM.OrdenDetalleLista = _unidadTrabajo.OrdenDetalle.ObtenerTodos(d => d.OrdenId == id, incluirPropiedades: "Producto");
+
+                return new ViewAsPdf("ImprimirOrden", CarroComprasVM)
+                {
+                    FileName = "Orden#" + CarroComprasVM.Orden.Id + ".pdf",
+                    PageOrientation = Rotativa.AspNetCore.Options.Orientation.Portrait,
+                    PageSize = Rotativa.AspNetCore.Options.Size.A4,
+                    CustomSwitches = "--page-offset 0 --footer-center [page] --footer-font-size 12"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+                return RedirectToAction(nameof(Index));
+            }
+            
         }
     }
 }
