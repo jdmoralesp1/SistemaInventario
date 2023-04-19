@@ -113,7 +113,7 @@
                                 <div class="col-9">
                                     @if (User.IsInRole(DS.Role_Ventas) || User.IsInRole(DS.Role_Admin))
                                     {
-                                        <input asp-for="Orden.Carrier" class="form-control" />
+                                        <input asp-for="Orden.Carrier" id="carrier" class="form-control" />
                                     }
                                     else
                                     {
@@ -126,7 +126,7 @@
                                 <div class="col-9">
                                     @if (User.IsInRole(DS.Role_Ventas) || User.IsInRole(DS.Role_Admin))
                                     {
-                                        <input asp-for="Orden.NumeroEnvio" class="form-control" />
+                                        <input asp-for="Orden.NumeroEnvio" id="numeroEnvio" class="form-control" />
                                     }
                                     else
                                     {
@@ -218,7 +218,7 @@
                                 }
                                 @if (Model.Orden.EstadoOrden == DS.EstadoEnProceso)
                                 {
-                                    <input type="submit" value="Enviar Orden" onclick="validarIngreso()" 
+                                    <input type="submit" value="Enviar Orden" onclick="return validarIngreso()" 
                                         class="btn btn-primary form-control" formaction="/Admin/Orden/EnviarOrden" formmethod="post"/>
                                 }
                             }
@@ -226,6 +226,17 @@
                             {
                                 <label class="btn btn-primary form-control">@Model.Orden.EstadoOrden</label>
                             }
+
+                            @if (Model.Orden.EstadoOrden != DS.EstadoDevuelto && Model.Orden.EstadoOrden != DS.EstadoCancelado &&
+                                        (User.IsInRole(DS.Role_Admin) || User.IsInRole(DS.Role_Ventas)))
+                            {
+                                <div class="pt-2">
+                                    <a asp-action="CancelarOrden" asp-route-id="@Model.Orden.Id" class="btn btn-danger form-control">
+                                        Cancelar Orden
+                                    </a>
+                                </div>
+                            }
+
                         </div>
                     </div>
                 </div>
@@ -233,4 +244,31 @@
         </div>
     </div>
 </form>
+
+@section Scripts {
+    <script>
+        function validarIngreso(){
+            var numeroEnvio = document.getElementById("numeroEnvio").value;
+            var carrier = document.getElementById("carrier").value;
+
+            if(numeroEnvio.toString() == ''){
+                swal("Error", "Ingrese el numero de envio", "error")
+                return false;
+            }
+            else if (carrier.toString() == '') {
+                swal("Error", "Ingrese el Carrier", "error")
+                return false;
+            }else{
+                return true;
+            }
+        }
+
+        $(document).ready(function () {
+            var fechaEnvio = document.getElementById("fechaEnvio");
+            if(fechaEnvio.value == '01-01-0001'){
+                fechaEnvio.ariaValueMax = "";
+            }
+        });
+    </script>
+}
 

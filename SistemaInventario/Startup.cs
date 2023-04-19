@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Identity.UI.Services;
 using SistemaInventario.Utilidades;
 using Stripe;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using SistemaInventario.AccesoDatos.Inicializador;
 
 namespace SistemaInventario
 {
@@ -42,6 +43,7 @@ namespace SistemaInventario
             services.AddSingleton<ITempDataProvider, CookieTempDataProvider>();
             services.Configure<StripeSettings>(Configuration.GetSection("Stripe"));
             services.AddScoped<IUnidadTrabajo, UnidadTrabajo>();
+            services.AddScoped<IDbInicializador, DbInicializador>();
             services.AddControllersWithViews().AddRazorRuntimeCompilation();
             services.AddRazorPages();
             services.ConfigureApplicationCookie(options =>
@@ -70,7 +72,7 @@ namespace SistemaInventario
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IDbInicializador dbInicializador)
         {
             if (env.IsDevelopment())
             {
@@ -91,6 +93,8 @@ namespace SistemaInventario
 
             app.UseAuthentication();
             app.UseAuthorization();
+
+            dbInicializador.Inicializar();
 
             StripeConfiguration.ApiKey = Configuration.GetSection("Stripe")["SecretKey"];
 
